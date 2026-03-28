@@ -296,18 +296,18 @@ class Database:
         except Exception as e:
             result_queue.put(e)
 
-    def write_kline(self, bar: KlineBar) -> None:
+    def write_kline(self, k: KlineBar) -> None:
         self._write_queue.put(WriteRequest(type="kline", data={
-            "symbol": bar.symbol,
-            "timeframe": bar.timeframe,
-            "timestamp": bar.timestamp,
-            "open": bar.open,
-            "high": bar.high,
-            "low": bar.low,
-            "close": bar.close,
-            "volume": bar.volume,
-            "bar_count": bar.bar_count,
-            "bar_time": bar.bar_time.isoformat(),
+            "symbol": k.symbol,
+            "timeframe": k.timeframe,
+            "timestamp": k.timestamp,
+            "open": k.open,
+            "high": k.high,
+            "low": k.low,
+            "close": k.close,
+            "volume": k.volume,
+            "bar_count": k.bar_count,
+            "bar_time": k.bar_time.isoformat(),
         }))
 
     def write_news(self, news: NewsItem) -> None:

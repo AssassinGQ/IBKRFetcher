@@ -1,0 +1,42 @@
+symbols:
+  - symbol: AAPL
+    name: Apple Inc.
+    sec_type: STK
+    exchange: SMART
+    currency: USD
+    what_to_show: TRADES
+
+  - symbol: TSLA
+    name: Tesla Inc.
+    sec_type: STK
+    exchange: SMART
+    currency: USD
+    what_to_show: TRADES
+
+  - symbol: MSFT
+    name: Microsoft Corp.
+    sec_type: STK
+    exchange: SMART
+    currency: USD
+    what_to_show: TRADES
+
+  - symbol: SPY
+    name: SPDR S&P 500 ETF
+    sec_type: STK
+    exchange: SMART
+    currency: USD
+    what_to_show: TRADES
+
+  - symbol: EURUSD
+    name: Euro/US Dollar
+    sec_type: CASH
+    exchange: IDEALPRO
+    currency: USD
+    what_to_show: MIDPOINT
+
+  - symbol: GLD
+    name: SPDR Gold Shares
+    sec_type: STK
+    exchange: SMART
+    currency: USD
+    what_to_show: TRADES
