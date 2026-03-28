@@ -1,0 +1,11 @@
+pyproject.toml
+src/ibkr_datafetcher/__init__.py
+src/ibkr_datafetcher/config.py
+src/ibkr_datafetcher/types.py
+src/ibkr_datafetcher.egg-info/PKG-INFO
+src/ibkr_datafetcher.egg-info/SOURCES.txt
+src/ibkr_datafetcher.egg-info/dependency_links.txt
+src/ibkr_datafetcher.egg-info/requires.txt
+src/ibkr_datafetcher.egg-info/top_level.txt
+tests/test_config.py
+tests/test_types.py

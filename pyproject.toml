@@ -1,0 +1,35 @@
+[project]
+name = "ibkr-datafetcher"
+version = "0.1.0"
+description = "IBKR K线数据同步工具"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "ib_insync>=0.9.65",
+    "pyyaml>=6.0",
+    "click>=8.1.0",
+    "apscheduler>=3.10.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pylint>=3.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+
+[tool.pylint.messages_control]
+max-line-length = 120
+disable = ["C0111", "R0903", "R0902", "R0911", "R1705"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
