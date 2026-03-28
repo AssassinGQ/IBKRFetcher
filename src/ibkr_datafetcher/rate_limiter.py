@@ -35,7 +35,7 @@ class RateLimiter:
         while timestamps and timestamps[0] < cutoff:
             timestamps.pop(0)
 
-    def _get_request_key(self, request_type: RequestType, symbol: str,
+    def _get_request_key(self, request_type: RequestType, symbol: str, 
                          timeframe: Optional[str] = None) -> str:
         parts = [request_type.value, symbol]
         if timeframe:
@@ -109,19 +109,19 @@ class RateLimiter:
         with self._lock:
             self._clean_old_timestamps(self._hist_timestamps, 60)
             self._clean_old_timestamps(self._news_timestamps, 60)
-
-            timestamps = (self._hist_timestamps if request_type == RequestType.HISTORICAL
+            
+            timestamps = (self._hist_timestamps if request_type == RequestType.HISTORICAL 
                           else self._news_timestamps)
-            limit = (self.config.hist_per_min if request_type == RequestType.HISTORICAL
+            limit = (self.config.hist_per_min if request_type == RequestType.HISTORICAL 
                      else self.config.news_per_min)
-
+            
             return len(timestamps) / limit if limit > 0 else 0.0
 
     def get_stats(self) -> dict:
         with self._lock:
             self._clean_old_timestamps(self._hist_timestamps, 60)
             self._clean_old_timestamps(self._news_timestamps, 60)
-
+            
             return {
                 "hist_in_flight": len(self._hist_timestamps),
                 "hist_limit": self.config.hist_per_min,
@@ -132,7 +132,7 @@ class RateLimiter:
                 "dedup_entries": len(self._dedup_cache),
                 "total_requests": self._total_requests,
                 "rejected_requests": self._rejected_requests,
-                "avg_wait_time": (self._total_wait_time / self._total_requests
+                "avg_wait_time": (self._total_wait_time / self._total_requests 
                                   if self._total_requests > 0 else 0.0),
             }
 
