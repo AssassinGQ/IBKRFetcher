@@ -74,6 +74,15 @@ class Database:
                 PRIMARY KEY(symbol, timeframe)
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS probe_cache (
+                symbol TEXT NOT NULL,
+                timeframe TEXT NOT NULL,
+                earliest_bar_time INTEGER,
+                latest_news_time INTEGER,
+                PRIMARY KEY(symbol, timeframe)
+            )
+        """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_klines_symbol_timeframe ON klines(symbol, timeframe)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_klines_timestamp ON klines(timestamp)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_news_timestamp ON news(timestamp)")
@@ -247,6 +256,41 @@ class Database:
                 ]
                 result_queue.put(result)
 
+            elif req.type == "get_latest_bar_time":
+                cursor = conn.execute("""
+                    SELECT timestamp FROM klines
+                    WHERE symbol = :symbol AND timeframe = :timeframe
+                    ORDER BY timestamp DESC LIMIT 1
+                """, req.params)
+                row = cursor.fetchone()
+                result = row[0] if row else None
+                result_queue.put(result)
+
+            elif req.type == "get_earliest_bar_time":
+                cursor = conn.execute("""
+                    SELECT earliest_bar_time FROM probe_cache
+                    WHERE symbol = :symbol AND timeframe = :timeframe
+                """, req.params)
+                row = cursor.fetchone()
+                result = row[0] if row else None
+                result_queue.put(result)
+
+            elif req.type == "set_earliest_bar_time":
+                conn.execute("""
+                    INSERT OR REPLACE INTO probe_cache (symbol, timeframe, earliest_bar_time)
+                    VALUES (:symbol, :timeframe, :earliest_bar_time)
+                """, req.params)
+                result_queue.put(None)
+
+            elif req.type == "get_latest_news_time":
+                cursor = conn.execute("""
+                    SELECT latest_news_time FROM probe_cache
+                    WHERE symbol = :symbol AND timeframe = 'NEWS'
+                """, req.params)
+                row = cursor.fetchone()
+                result = row[0] if row else None
+                result_queue.put(result)
+
             else:
                 result_queue.put(None)
         except Exception as e:
@@ -338,6 +382,54 @@ class Database:
         self._read_response_queues[req_id] = resp_queue
         self._read_request_queue.put(ReadRequest(id=req_id, type="get_news", params={
             "symbol": symbol, "limit": limit
+        }))
+        try:
+            return resp_queue.get(timeout=5)
+        finally:
+            self._read_response_queues.pop(req_id, None)
+
+    def get_latest_bar_time(self, symbol: str, timeframe: str) -> Optional[int]:
+        req_id = f"latest_bar_time_{symbol}_{timeframe}_{time.time()}"
+        resp_queue: queue.Queue = queue.Queue()
+        self._read_response_queues[req_id] = resp_queue
+        self._read_request_queue.put(ReadRequest(id=req_id, type="get_latest_bar_time", params={
+            "symbol": symbol, "timeframe": timeframe
+        }))
+        try:
+            return resp_queue.get(timeout=5)
+        finally:
+            self._read_response_queues.pop(req_id, None)
+
+    def get_earliest_bar_time(self, symbol: str, timeframe: str) -> Optional[int]:
+        req_id = f"earliest_bar_time_{symbol}_{timeframe}_{time.time()}"
+        resp_queue: queue.Queue = queue.Queue()
+        self._read_response_queues[req_id] = resp_queue
+        self._read_request_queue.put(ReadRequest(id=req_id, type="get_earliest_bar_time", params={
+            "symbol": symbol, "timeframe": timeframe
+        }))
+        try:
+            return resp_queue.get(timeout=5)
+        finally:
+            self._read_response_queues.pop(req_id, None)
+
+    def set_earliest_bar_time(self, symbol: str, timeframe: str, earliest_bar_time: int) -> None:
+        req_id = f"set_earliest_{symbol}_{timeframe}_{time.time()}"
+        resp_queue: queue.Queue = queue.Queue()
+        self._read_response_queues[req_id] = resp_queue
+        self._read_request_queue.put(ReadRequest(id=req_id, type="set_earliest_bar_time", params={
+            "symbol": symbol, "timeframe": timeframe, "earliest_bar_time": earliest_bar_time
+        }))
+        try:
+            resp_queue.get(timeout=5)
+        finally:
+            self._read_response_queues.pop(req_id, None)
+
+    def get_latest_news_time(self, symbol: str) -> Optional[int]:
+        req_id = f"latest_news_time_{symbol}_{time.time()}"
+        resp_queue: queue.Queue = queue.Queue()
+        self._read_response_queues[req_id] = resp_queue
+        self._read_request_queue.put(ReadRequest(id=req_id, type="get_latest_news_time", params={
+            "symbol": symbol
         }))
         try:
             return resp_queue.get(timeout=5)
