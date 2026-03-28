@@ -2,3 +2,4 @@ ib_insync>=0.9.65
 pyyaml>=6.0
 click>=8.1.0
 apscheduler>=3.10.0
+croniter>=2.0.0

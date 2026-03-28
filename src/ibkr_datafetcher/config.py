@@ -17,6 +17,7 @@ class GatewayConfig:
 class SyncConfig:
     retry_attempts: int = 3
     retry_delay: int = 30
+    symbols: list = field(default_factory=list)
 
 
 @dataclass
@@ -98,3 +99,15 @@ def load_symbols_from_yaml(path: str) -> list[SymbolConfig]:
         symbols.append(SymbolConfig(**item))
 
     return symbols
+
+
+def load_config(config_path: str) -> Config:
+    cfg = Config.from_file(config_path)
+
+    symbols_path = "configs/symbols.yaml"
+    if Path(symbols_path).exists():
+        cfg.sync.symbols = load_symbols_from_yaml(symbols_path)
+    else:
+        cfg.sync.symbols = []
+
+    return cfg
