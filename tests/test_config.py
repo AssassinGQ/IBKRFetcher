@@ -13,9 +13,9 @@ DEFAULT_SYMBOLS = ROOT / "configs" / "symbols.yaml"
 
 def test_uc_p1_12_config_from_default_file():
     cfg = Config.from_file(DEFAULT_CONFIG)
-    assert cfg.gateway.host == "hgq-nas"
-    assert cfg.gateway.port == 4004
-    assert cfg.gateway.client_id == 1
+    assert cfg.gateway.host == "192.168.0.118"
+    assert cfg.gateway.port == 4002
+    assert cfg.gateway.client_id == 89
     assert cfg.sync.retry_attempts == 3
     assert cfg.sync.retry_delay == 30
     assert cfg.database.path == "data/ibkr_cache.db"
@@ -33,9 +33,9 @@ def test_uc_p1_13_config_roundtrip(tmp_path: Path):
 
 def test_uc_p1_14_load_symbols_from_default_yaml():
     symbols = load_symbols_from_yaml(DEFAULT_SYMBOLS)
-    assert len(symbols) == 11
-    assert symbols[0].symbol == "AAPL"
-    assert symbols[0].name == "Apple Inc."
+    assert len(symbols) == 12
+    assert symbols[0].symbol == "GOOGL"
+    assert symbols[0].name == "Alphabet Inc."
 
 
 def test_uc_p1_15_minimal_yaml_uses_section_defaults(tmp_path: Path):

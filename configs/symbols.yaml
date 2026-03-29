@@ -1,3 +1,9 @@
+- symbol: GOOGL
+  name: Alphabet Inc.
+  sec_type: STK
+  exchange: SMART
+  currency: USD
+  what_to_show: TRADES
 - symbol: AAPL
   name: Apple Inc.
   sec_type: STK

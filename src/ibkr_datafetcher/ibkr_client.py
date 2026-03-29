@@ -98,11 +98,6 @@ class IBKRClient:
             logger.exception("IBKR connect failed")
             return False
 
-    async def _disconnect_async(self) -> None:
-        if self._ib.isConnected():
-            self._ib.disconnect()
-        asyncio.get_event_loop().stop()
-
     def disconnect(self) -> None:
         loop = self._loop
         thread = self._thread
@@ -113,12 +108,15 @@ class IBKRClient:
             self._ib.RequestTimeout = 120
             return
         try:
-            fut = asyncio.run_coroutine_threadsafe(self._disconnect_async(), loop)
-            fut.result(timeout=15)
-        except (OSError, RuntimeError, concurrent.futures.TimeoutError,
-                concurrent.futures.CancelledError):
-            logger.exception("IBKR disconnect failed")
-        thread.join(timeout=10)
+            if self._ib.isConnected():
+                self._ib.disconnect()
+        except (OSError, RuntimeError):
+            logger.debug("IB disconnect raised", exc_info=True)
+        try:
+            loop.call_soon_threadsafe(loop.stop)
+        except RuntimeError:
+            pass
+        thread.join(timeout=5)
         self._loop = None
         self._thread = None
         self._ib = IB()

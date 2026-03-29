@@ -1,7 +1,7 @@
 gateway:
-  host: hgq-nas
-  port: 4004
-  client_id: 1
+  host: 192.168.0.118
+  port: 4002
+  client_id: 89
 sync:
   retry_attempts: 3
   retry_delay: 30
