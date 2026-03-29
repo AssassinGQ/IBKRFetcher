@@ -1,0 +1,66 @@
+- symbol: AAPL
+  name: Apple Inc.
+  sec_type: STK
+  exchange: SMART
+  currency: USD
+  what_to_show: TRADES
+- symbol: SPY
+  name: SPDR S&P 500 ETF Trust
+  sec_type: STK
+  exchange: SMART
+  currency: USD
+  what_to_show: TRADES
+- symbol: MSFT
+  name: Microsoft Corporation
+  sec_type: STK
+  exchange: SMART
+  currency: USD
+  what_to_show: TRADES
+- symbol: "700"
+  name: Tencent Holdings Limited
+  sec_type: STK
+  exchange: SEHK
+  currency: HKD
+  what_to_show: TRADES
+- symbol: VIX
+  name: CBOE Volatility Index
+  sec_type: IND
+  exchange: CBOE
+  currency: USD
+  what_to_show: TRADES
+- symbol: VIX3M
+  name: CBOE 3-Month Volatility Index
+  sec_type: IND
+  exchange: CBOE
+  currency: USD
+  what_to_show: TRADES
+- symbol: VIX9D
+  name: CBOE 9-Day Volatility Index
+  sec_type: IND
+  exchange: CBOE
+  currency: USD
+  what_to_show: TRADES
+- symbol: VXN
+  name: CBOE NASDAQ-100 Volatility Index
+  sec_type: IND
+  exchange: CBOE
+  currency: USD
+  what_to_show: TRADES
+- symbol: VXD
+  name: CBOE DJIA Volatility Index
+  sec_type: IND
+  exchange: CBOE
+  currency: USD
+  what_to_show: TRADES
+- symbol: VXO
+  name: CBOE S&P 100 Volatility Index
+  sec_type: IND
+  exchange: CBOE
+  currency: USD
+  what_to_show: TRADES
+- symbol: DX
+  name: US Dollar Index
+  sec_type: IND
+  exchange: ICE
+  currency: USD
+  what_to_show: TRADES
