@@ -1,0 +1,2 @@
+# Mock gateway has no external dependencies beyond the Python standard library.
+# ib_insync is only needed by the test scripts (clients), not by the mock server itself.
