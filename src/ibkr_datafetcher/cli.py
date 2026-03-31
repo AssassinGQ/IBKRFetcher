@@ -15,7 +15,7 @@ from ibkr_datafetcher.ibkr_client import IBKRClient
 from ibkr_datafetcher.kline_fetcher import KlineFetcher
 from ibkr_datafetcher.news_fetcher import NewsFetcher
 from ibkr_datafetcher.rate_limiter import RateLimiter
-from ibkr_datafetcher.types import SymbolConfig, SyncProgress, Timeframe
+from ibkr_datafetcher.types import SymbolConfig, SyncProgress, Timeframe, resolve_timeframe
 
 _DEFAULT_CONFIG = "configs/config.yaml"
 _DEFAULT_SYMBOLS = "configs/symbols.yaml"
@@ -44,11 +44,9 @@ def _parse_symbol_list(raw: str, all_symbols: list[SymbolConfig]) -> list[Symbol
 def _parse_timeframes(raw: str) -> list[Timeframe]:
     out: list[Timeframe] = []
     for part in raw.split(","):
-        val = part.strip()
-        for tf in Timeframe:
-            if tf.value == val or tf.name == val.upper():
-                out.append(tf)
-                break
+        tf = resolve_timeframe(part)
+        if tf is not None:
+            out.append(tf)
     return out
 
 
@@ -98,7 +96,9 @@ def main(ctx: click.Context) -> None:
 
 @main.command()
 @click.option("--symbols", default=None, help="Comma-separated symbol list")
-@click.option("--timeframes", default=None, help="Comma-separated timeframes")
+@click.option("--timeframes", default=None,
+              help="Comma-separated timeframes, e.g. D1,H1,M5 (aliases: 1D,1H,5M). "
+                   "Omit to sync all timeframes.")
 @click.option("--config", "config_path", default=_DEFAULT_CONFIG)
 @click.option("--symbols-config", default=_DEFAULT_SYMBOLS)
 def sync(symbols, timeframes, config_path, symbols_config):
@@ -164,10 +164,8 @@ def sync(symbols, timeframes, config_path, symbols_config):
 
 
 def _resolve_timeframe_name(timeframe: str) -> str | None:
-    for tf in Timeframe:
-        if tf.value == timeframe or tf.name == timeframe.upper():
-            return tf.name
-    return None
+    tf = resolve_timeframe(timeframe)
+    return tf.name if tf else None
 
 
 def _format_bars(bars: list, fmt: str) -> str:

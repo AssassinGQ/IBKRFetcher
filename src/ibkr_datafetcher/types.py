@@ -62,6 +62,28 @@ class Timeframe(Enum):
         return _parse_ibkr_duration(self.ibkr_max_duration)
 
 
+_TIMEFRAME_ALIASES: dict[str, Timeframe] = {
+    "5S": Timeframe.S5, "10S": Timeframe.S10, "15S": Timeframe.S15, "30S": Timeframe.S30,
+    "1M": Timeframe.M1, "2M": Timeframe.M2, "3M": Timeframe.M3, "5M": Timeframe.M5,
+    "10M": Timeframe.M10, "15M": Timeframe.M15, "20M": Timeframe.M20, "30M": Timeframe.M30,
+    "1H": Timeframe.H1, "2H": Timeframe.H2, "3H": Timeframe.H3, "4H": Timeframe.H4,
+    "8H": Timeframe.H8,
+    "1D": Timeframe.D1, "1W": Timeframe.W1, "1MN": Timeframe.MN1,
+}
+
+
+def resolve_timeframe(raw: str) -> Timeframe | None:
+    """Resolve a timeframe string to a Timeframe enum.
+
+    Accepts: enum name (D1), alias (1D), or IBKR bar size (1 day).
+    """
+    s = raw.strip().upper()
+    for tf in Timeframe:
+        if tf.name == s or tf.value == raw.strip():
+            return tf
+    return _TIMEFRAME_ALIASES.get(s)
+
+
 _TIMEFRAME_MAX_DURATION: dict[Timeframe, str] = {
     Timeframe.S5: "2000 S",
     Timeframe.S10: "4000 S",
