@@ -216,6 +216,18 @@ def _format_bars(bars: list, fmt: str) -> str:
 def query(symbol, timeframe, from_time, to_time, limit, fmt, output, config_path):  # pylint: disable=too-many-branches
     """Query local K-line data"""
     cfg = _load_config(config_path)
+
+    if output:
+        out_abs = os.path.abspath(output)
+        db_abs = os.path.abspath(_resolve_path(cfg.database.path))
+        if out_abs == db_abs:
+            click.echo(
+                f"ERROR: --output points to the database file ({cfg.database.path}). "
+                "This would overwrite the database. Use a different path.",
+                err=True,
+            )
+            sys.exit(1)
+
     db = Database(cfg.database.path)
 
     tf_name = _resolve_timeframe_name(timeframe)
