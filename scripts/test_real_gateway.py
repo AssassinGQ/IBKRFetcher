@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test fetching GOOGL data from a real IB Gateway at 192.168.0.118:4002."""
+"""Test fetching GOOGL data from a real IB Gateway at hgq-nas:4002."""
 from __future__ import annotations
 
 import sys
@@ -17,15 +17,14 @@ GOOGL = SymbolConfig(
     exchange="SMART", currency="USD", what_to_show="TRADES",
 )
 
-GW = GatewayConfig(host="192.168.0.118", port=4002, client_id=88)
+GW = GatewayConfig(host="hgq-nas", port=4002, client_id=88)
 
 
 def main():
     client = IBKRClient(GW)
-    client._ib.RequestTimeout = 300
 
     print(f"Connecting to IB Gateway at {GW.host}:{GW.port}...")
-    if not client.connect(timeout=30):
+    if not client.connect(timeout=60):
         print("FAILED to connect. Is IB Gateway running?")
         sys.exit(1)
     print("Connected!\n")

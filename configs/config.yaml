@@ -1,5 +1,5 @@
 gateway:
-  host: 192.168.0.118
+  host: hgq-nas
   port: 4002
   client_id: 89
 sync:

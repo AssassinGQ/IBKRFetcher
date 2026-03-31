@@ -41,23 +41,33 @@ def _bar_date_to_datetime(bar_date: datetime | date | str) -> datetime:
 class IBKRClient:
     def __init__(self, config: GatewayConfig):
         self._config = config
-        self._ib = IB()
-        self._ib.RequestTimeout = 120
+        self._ib: IB | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._loop_ready = threading.Event()
         self._thread_lock = threading.Lock()
+
+    @property
+    def _ib_safe(self) -> IB:
+        if self._ib is None:
+            msg = "IB instance not created; call connect() first"
+            raise RuntimeError(msg)
+        return self._ib
 
     def _ensure_loop_thread(self) -> None:
         with self._thread_lock:
             if self._thread is not None and self._thread.is_alive():
                 return
             self._loop_ready.clear()
+            ib_holder: list[IB] = []
 
             def runner() -> None:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 self._loop = loop
+                ib = IB()
+                ib.RequestTimeout = 120
+                ib_holder.append(ib)
                 self._loop_ready.set()
                 loop.run_forever()
 
@@ -68,6 +78,7 @@ class IBKRClient:
             if not self._loop_ready.wait(timeout=10):
                 msg = "IBKR event loop thread failed to start"
                 raise RuntimeError(msg)
+            self._ib = ib_holder[0]
 
     def _run_coro(self, coro: Coroutine[Any, Any, T], timeout: float) -> T:
         if self._loop is None:
@@ -77,7 +88,7 @@ class IBKRClient:
         return fut.result(timeout=timeout)
 
     async def _connect_async(self, timeout: float) -> None:
-        await self._ib.connectAsync(
+        await self._ib_safe.connectAsync(
             self._config.host,
             self._config.port,
             self._config.client_id,
@@ -86,12 +97,12 @@ class IBKRClient:
         )
 
     async def _is_connected_async(self) -> bool:
-        return self._ib.isConnected()
+        return self._ib_safe.isConnected()
 
-    def connect(self, timeout: float = 30) -> bool:
+    def connect(self, timeout: float = 60) -> bool:
         try:
             self._ensure_loop_thread()
-            self._run_coro(self._connect_async(timeout), timeout + 15)
+            self._run_coro(self._connect_async(timeout), timeout + 30)
             return self._run_coro(self._is_connected_async(), 5)
         except (OSError, asyncio.TimeoutError, ConnectionRefusedError,
                 RuntimeError, TimeoutError, concurrent.futures.TimeoutError):
@@ -104,11 +115,10 @@ class IBKRClient:
         if loop is None or thread is None or not thread.is_alive():
             self._loop = None
             self._thread = None
-            self._ib = IB()
-            self._ib.RequestTimeout = 120
+            self._ib = None
             return
         try:
-            if self._ib.isConnected():
+            if self._ib is not None and self._ib.isConnected():
                 self._ib.disconnect()
         except (OSError, RuntimeError):
             logger.debug("IB disconnect raised", exc_info=True)
@@ -119,15 +129,15 @@ class IBKRClient:
         thread.join(timeout=5)
         self._loop = None
         self._thread = None
-        self._ib = IB()
-        self._ib.RequestTimeout = 120
+        self._ib = None
 
     def is_connected(self) -> bool:
-        if self._loop is None or self._thread is None or not self._thread.is_alive():
+        if self._ib is None or self._loop is None or self._thread is None or not self._thread.is_alive():
             return False
         try:
             return self._run_coro(self._is_connected_async(), 5)
-        except (OSError, RuntimeError, concurrent.futures.TimeoutError):
+        except (OSError, RuntimeError, concurrent.futures.TimeoutError,
+                concurrent.futures.CancelledError):
             return False
 
     def reconnect(self, max_retries: int = 3) -> bool:
@@ -154,7 +164,7 @@ class IBKRClient:
         raise ValueError(msg)
 
     async def _qualify_async(self, contract: Contract) -> list[Contract]:
-        return await self._ib.qualifyContractsAsync(contract)
+        return await self._ib_safe.qualifyContractsAsync(contract)
 
     def qualify_contract(self, contract: Contract) -> int:
         if not self.is_connected():
@@ -178,7 +188,7 @@ class IBKRClient:
         duration: str,
         what_to_show: str,
     ) -> Any:
-        return await self._ib.reqHistoricalDataAsync(
+        return await self._ib_safe.reqHistoricalDataAsync(
             contract,
             end_date_time or "",
             duration,
@@ -236,7 +246,7 @@ class IBKRClient:
         end_time: Optional[str],
         total_results: int,
     ) -> Any:
-        return await self._ib.reqHistoricalNewsAsync(
+        return await self._ib_safe.reqHistoricalNewsAsync(
             con_id,
             provider_codes,
             start_time or "",
