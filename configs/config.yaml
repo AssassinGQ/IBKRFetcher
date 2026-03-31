@@ -1,12 +1,16 @@
 gateway:
-  host: hgq-nas
-  port: 4002
-  client_id: 89
+  host: ib-live-gateway
+  port: 4003
+  client_id: 10
+news_gateway:
+  host: ib-gateway
+  port: 4004
+  client_id: 11
 sync:
   retry_attempts: 3
   retry_delay: 30
 database:
-  path: data/ibkr_cache.db
+  path: output/ibkr_cache.db
 schedule:
   enabled: false
   cron: "0 9,16 * * *"

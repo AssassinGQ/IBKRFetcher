@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Test fetching GOOGL data from a real IB Gateway at hgq-nas:4002."""
+"""Test fetching GOOGL data from real IB Gateways (dual-gateway mode).
+
+- Live gateway (ib-live-gateway:4003) for K-line data
+- Paper gateway (ib-gateway:4004) for news data
+"""
 from __future__ import annotations
 
 import sys
@@ -17,86 +21,106 @@ GOOGL = SymbolConfig(
     exchange="SMART", currency="USD", what_to_show="TRADES",
 )
 
-GW = GatewayConfig(host="hgq-nas", port=4002, client_id=88)
+LIVE_GW = GatewayConfig(host="ib-live-gateway", port=4003, client_id=10)
+PAPER_GW = GatewayConfig(host="ib-gateway", port=4004, client_id=11)
+
+
+def test_kline(client: IBKRClient, contract, con_id: int) -> None:
+    print("2. Fetching daily bars (last 5 days)...")
+    t0 = time.time()
+    try:
+        bars_d1 = client.get_historical_bars(
+            contract, Timeframe.D1, duration="5 D", what_to_show="TRADES",
+        )
+        elapsed = time.time() - t0
+        print("   Got %d daily bars in %.1fs" % (len(bars_d1), elapsed))
+        for b in bars_d1:
+            dt = b.bar_time.strftime("%Y-%m-%d")
+            print("   %s O=%.2f H=%.2f L=%.2f C=%.2f V=%.0f" % (
+                dt, b.open, b.high, b.low, b.close, b.volume))
+    except Exception as e:
+        print("   FAILED: %s (took %.1fs)" % (e, time.time() - t0))
+
+    print("\n" + "=" * 60)
+    print("3. Fetching 1-hour bars (last 1 day)...")
+    t0 = time.time()
+    try:
+        bars_h1 = client.get_historical_bars(
+            contract, Timeframe.H1, duration="1 D", what_to_show="TRADES",
+        )
+        elapsed = time.time() - t0
+        print("   Got %d hourly bars in %.1fs" % (len(bars_h1), elapsed))
+        for b in bars_h1[:5]:
+            dt = b.bar_time.strftime("%Y-%m-%d %H:%M")
+            print("   %s O=%.2f C=%.2f V=%.0f" % (dt, b.open, b.close, b.volume))
+    except Exception as e:
+        print("   FAILED: %s (took %.1fs)" % (e, time.time() - t0))
+
+
+def test_news(client: IBKRClient, con_id: int) -> None:
+    print("4. Fetching historical news for GOOGL (conId=%d)..." % con_id)
+    t0 = time.time()
+    try:
+        news = client.get_historical_news(con_id, total_results=10)
+        elapsed = time.time() - t0
+        print("   Got %d news items in %.1fs" % (len(news), elapsed))
+        for i, n in enumerate(news[:5]):
+            ts_str = time.strftime("%Y-%m-%d %H:%M", time.gmtime(n.timestamp))
+            print("   [%d] %s | %s | %s" % (i + 1, ts_str, n.provider_code, n.headline[:60]))
+    except Exception as e:
+        print("   FAILED: %s (took %.1fs)" % (e, time.time() - t0))
 
 
 def main():
-    client = IBKRClient(GW)
+    live_client = IBKRClient(LIVE_GW)
+    paper_client = IBKRClient(PAPER_GW)
 
-    print(f"Connecting to IB Gateway at {GW.host}:{GW.port}...")
-    if not client.connect(timeout=60):
-        print("FAILED to connect. Is IB Gateway running?")
+    print("=" * 60)
+    print("Connecting to LIVE gateway at %s:%d..." % (LIVE_GW.host, LIVE_GW.port))
+    if not live_client.connect(timeout=60):
+        print("FAILED to connect to live gateway.")
         sys.exit(1)
-    print("Connected!\n")
+    print("Live gateway connected!\n")
+
+    print("Connecting to PAPER gateway at %s:%d..." % (PAPER_GW.host, PAPER_GW.port))
+    if not paper_client.connect(timeout=60):
+        print("FAILED to connect to paper gateway.")
+        live_client.disconnect()
+        sys.exit(1)
+    print("Paper gateway connected!\n")
 
     try:
-        # 1. Make and qualify contract
         print("=" * 60)
-        print("1. Qualifying GOOGL contract...")
-        contract = client.make_contract(GOOGL)
-        print(f"   Contract created: {contract}")
-        con_id = client.qualify_contract(contract)
-        print(f"   Qualified! conId = {con_id}")
-        print(f"   Full: symbol={contract.symbol}, exchange={contract.exchange}, "
-              f"primary={contract.primaryExchange}, currency={contract.currency}")
+        print("1. Qualifying GOOGL contract (via live gateway)...")
+        contract = live_client.make_contract(GOOGL)
+        con_id = live_client.qualify_contract(contract)
+        print("   Qualified! conId = %d" % con_id)
+        print("   symbol=%s exchange=%s primary=%s currency=%s" % (
+            contract.symbol, contract.exchange,
+            contract.primaryExchange, contract.currency))
 
-        # 2. Fetch daily bars (last 5 days - small request)
         print("\n" + "=" * 60)
-        print("2. Fetching daily bars (last 5 days)...")
-        t0 = time.time()
-        try:
-            bars_d1 = client.get_historical_bars(
-                contract, Timeframe.D1, duration="5 D", what_to_show="TRADES",
-            )
-            elapsed = time.time() - t0
-            print(f"   Got {len(bars_d1)} daily bars in {elapsed:.1f}s")
-            for b in bars_d1:
-                print(f"   {b.bar_time.strftime('%Y-%m-%d')} O={b.open:.2f} "
-                      f"H={b.high:.2f} L={b.low:.2f} C={b.close:.2f} V={b.volume:.0f}")
-        except Exception as e:
-            print(f"   FAILED: {e} (took {time.time()-t0:.1f}s)")
-            print("   (Weekend/maintenance? Trying news instead...)")
+        print("[LIVE GATEWAY] K-line data")
+        print("=" * 60)
+        test_kline(live_client, contract, con_id)
 
-        # 3. Fetch 1-hour bars (last 1 day)
         print("\n" + "=" * 60)
-        print("3. Fetching 1-hour bars (last 1 day)...")
-        t0 = time.time()
-        try:
-            bars_h1 = client.get_historical_bars(
-                contract, Timeframe.H1, duration="1 D", what_to_show="TRADES",
-            )
-            elapsed = time.time() - t0
-            print(f"   Got {len(bars_h1)} hourly bars in {elapsed:.1f}s")
-            for b in bars_h1[:5]:
-                print(f"   {b.bar_time.strftime('%Y-%m-%d %H:%M')} O={b.open:.2f} C={b.close:.2f} V={b.volume:.0f}")
-        except Exception as e:
-            print(f"   FAILED: {e} (took {time.time()-t0:.1f}s)")
-
-        # 4. Fetch historical news
-        print("\n" + "=" * 60)
-        print(f"4. Fetching historical news for GOOGL (conId={con_id})...")
-        t0 = time.time()
-        try:
-            news = client.get_historical_news(con_id, total_results=10)
-            elapsed = time.time() - t0
-            print(f"   Got {len(news)} news items in {elapsed:.1f}s")
-            for i, n in enumerate(news[:5]):
-                ts_str = time.strftime('%Y-%m-%d %H:%M', time.gmtime(n.timestamp))
-                print(f"   [{i+1}] {ts_str} | {n.provider_code} | {n.headline[:70]}")
-        except Exception as e:
-            print(f"   FAILED: {e} (took {time.time()-t0:.1f}s)")
+        print("[PAPER GATEWAY] News data")
+        print("=" * 60)
+        test_news(paper_client, con_id)
 
         print("\n" + "=" * 60)
         print("DONE!")
 
     except Exception as e:
-        print(f"\nERROR: {type(e).__name__}: {e}")
+        print("\nERROR: %s: %s" % (type(e).__name__, e))
         import traceback
         traceback.print_exc()
         sys.exit(1)
     finally:
         print("\nDisconnecting...")
-        client.disconnect()
+        live_client.disconnect()
+        paper_client.disconnect()
         print("Disconnected.")
 
 

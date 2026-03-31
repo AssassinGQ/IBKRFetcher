@@ -30,8 +30,8 @@ def _mapping_to_dataclass(cls: type[T], section: dict[str, Any] | None) -> T:
 
 @dataclass
 class GatewayConfig:
-    host: str = "hgq-nas"
-    port: int = 4004
+    host: str = "ib-live-gateway"
+    port: int = 4003
     client_id: int = 1
 
 
@@ -58,6 +58,7 @@ class Config:
     sync: SyncConfig
     database: DatabaseConfig
     schedule: ScheduleConfig
+    news_gateway: GatewayConfig | None = None
 
     @classmethod
     def from_file(cls, path: str | Path) -> Config:
@@ -70,20 +71,25 @@ class Config:
         sy = cast(dict[str, Any] | None, data.get("sync"))
         db = cast(dict[str, Any] | None, data.get("database"))
         sc = cast(dict[str, Any] | None, data.get("schedule"))
+        ngw_raw = cast(dict[str, Any] | None, data.get("news_gateway"))
+        ngw = _mapping_to_dataclass(GatewayConfig, ngw_raw) if ngw_raw else None
         return cls(
             gateway=_mapping_to_dataclass(GatewayConfig, gw),
             sync=_mapping_to_dataclass(SyncConfig, sy),
             database=_mapping_to_dataclass(DatabaseConfig, db),
             schedule=_mapping_to_dataclass(ScheduleConfig, sc),
+            news_gateway=ngw,
         )
 
     def to_file(self, path: str | Path) -> None:
-        payload = {
+        payload: dict[str, Any] = {
             "gateway": asdict(self.gateway),
             "sync": asdict(self.sync),
             "database": asdict(self.database),
             "schedule": asdict(self.schedule),
         }
+        if self.news_gateway is not None:
+            payload["news_gateway"] = asdict(self.news_gateway)
         Path(path).write_text(
             yaml.safe_dump(payload, default_flow_style=False, sort_keys=False, allow_unicode=True),
             encoding="utf-8",
