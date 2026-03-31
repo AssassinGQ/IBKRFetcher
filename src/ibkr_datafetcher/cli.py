@@ -114,29 +114,52 @@ def sync(symbols, timeframes, config_path, symbols_config):
         return
 
     db = Database(cfg.database.path)
-    client = IBKRClient(cfg.gateway)
+    kline_client = IBKRClient(cfg.gateway)
     rl = RateLimiter()
-    fetcher = KlineFetcher(client, rl, db)
 
-    click.echo(f"Connecting to IBKR Gateway at {cfg.gateway.host}:{cfg.gateway.port}...")
-    if not client.connect():
-        click.echo("Failed to connect to IBKR Gateway.", err=True)
+    news_gw = cfg.news_gateway if cfg.news_gateway else cfg.gateway
+    news_client = IBKRClient(news_gw) if cfg.news_gateway else kline_client
+
+    click.echo(f"Connecting to IBKR Gateway (kline) at {cfg.gateway.host}:{cfg.gateway.port}...")
+    if not kline_client.connect():
+        click.echo("Failed to connect to kline gateway.", err=True)
         db.close()
         sys.exit(1)
 
+    if cfg.news_gateway:
+        click.echo(f"Connecting to IBKR Gateway (news) at {news_gw.host}:{news_gw.port}...")
+        if not news_client.connect():
+            click.echo("Failed to connect to news gateway.", err=True)
+            kline_client.disconnect()
+            db.close()
+            sys.exit(1)
+
+    fetcher = KlineFetcher(kline_client, rl, db)
+    news_fetcher = NewsFetcher(news_client, rl, db)
+
     try:
-        click.echo(f"Syncing {len(syms)} symbol(s)...")
+        click.echo(f"Syncing klines for {len(syms)} symbol(s)...")
         result = fetcher.sync_all(syms, timeframes=tfs, progress_callback=_progress_printer)
         click.echo("")
         click.echo(
-            f"Done: {result['total_bars']} bars fetched, "
+            f"Klines: {result['total_bars']} bars fetched, "
             f"{result['symbols_processed']} tasks processed, "
             f"{len(result['errors'])} errors."
         )
         for err in result["errors"]:
             click.echo(f"  ERROR: {err}", err=True)
+
+        click.echo(f"\nSyncing news for {len(syms)} symbol(s)...")
+        for sc in syms:
+            try:
+                nr = news_fetcher.fetch_symbol_news(sc)
+                click.echo(f"  {sc.symbol}: {nr['news_count']} articles")
+            except (ConnectionError, ValueError, OSError) as e:
+                click.echo(f"  {sc.symbol}: news error: {e}", err=True)
     finally:
-        client.disconnect()
+        kline_client.disconnect()
+        if cfg.news_gateway:
+            news_client.disconnect()
         db.close()
 
 
@@ -265,12 +288,13 @@ def news(symbols, days, config_path, symbols_config):
         click.echo("No matching symbols found.")
         return
 
+    news_gw = cfg.news_gateway if cfg.news_gateway else cfg.gateway
     db = Database(cfg.database.path)
-    client = IBKRClient(cfg.gateway)
+    client = IBKRClient(news_gw)
     rl = RateLimiter()
     fetcher = NewsFetcher(client, rl, db)
 
-    click.echo(f"Connecting to IBKR Gateway at {cfg.gateway.host}:{cfg.gateway.port}...")
+    click.echo(f"Connecting to IBKR Gateway (news) at {news_gw.host}:{news_gw.port}...")
     if not client.connect():
         click.echo("Failed to connect.", err=True)
         db.close()
@@ -296,15 +320,27 @@ def serve(schedule, config_path, symbols_config):
     all_syms = _load_symbols(symbols_config)
 
     db = Database(cfg.database.path)
-    client = IBKRClient(cfg.gateway)
+    kline_client = IBKRClient(cfg.gateway)
     rl = RateLimiter()
-    fetcher = KlineFetcher(client, rl, db)
 
-    click.echo(f"Connecting to IBKR Gateway at {cfg.gateway.host}:{cfg.gateway.port}...")
-    if not client.connect():
-        click.echo("Failed to connect.", err=True)
+    news_gw = cfg.news_gateway if cfg.news_gateway else cfg.gateway
+    news_client = IBKRClient(news_gw) if cfg.news_gateway else kline_client
+
+    click.echo(f"Connecting to IBKR Gateway (kline) at {cfg.gateway.host}:{cfg.gateway.port}...")
+    if not kline_client.connect():
+        click.echo("Failed to connect to kline gateway.", err=True)
         db.close()
         sys.exit(1)
+
+    if cfg.news_gateway:
+        click.echo(f"Connecting to IBKR Gateway (news) at {news_gw.host}:{news_gw.port}...")
+        if not news_client.connect():
+            click.echo("Failed to connect to news gateway.", err=True)
+            kline_client.disconnect()
+            db.close()
+            sys.exit(1)
+
+    fetcher = KlineFetcher(kline_client, rl, db)
 
     try:
         from ibkr_datafetcher.scheduler import Scheduler  # pylint: disable=import-outside-toplevel
@@ -314,28 +350,34 @@ def serve(schedule, config_path, symbols_config):
     except KeyboardInterrupt:
         click.echo("\nStopping...")
     finally:
-        client.disconnect()
+        kline_client.disconnect()
+        if cfg.news_gateway:
+            news_client.disconnect()
         db.close()
 
 
 @main.command(name="reconnect")
 @click.option("--config", "config_path", default=_DEFAULT_CONFIG)
 def reconnect_cmd(config_path):
-    """Check/reconnect IBKR Gateway"""
+    """Check/reconnect IBKR Gateway(s)"""
     cfg = _load_config(config_path)
-    client = IBKRClient(cfg.gateway)
 
-    if client.is_connected():
-        click.echo("Already connected to IBKR Gateway.")
-        return
-
-    click.echo("Not connected. Attempting reconnect...")
-    if client.reconnect():
-        click.echo("Reconnected successfully.")
+    kline_client = IBKRClient(cfg.gateway)
+    click.echo(f"Kline gateway ({cfg.gateway.host}:{cfg.gateway.port})...")
+    if kline_client.connect():
+        click.echo("  Connected.")
     else:
-        click.echo("Reconnect failed.", err=True)
-        sys.exit(1)
-    client.disconnect()
+        click.echo("  FAILED.", err=True)
+    kline_client.disconnect()
+
+    if cfg.news_gateway:
+        news_client = IBKRClient(cfg.news_gateway)
+        click.echo(f"News gateway ({cfg.news_gateway.host}:{cfg.news_gateway.port})...")
+        if news_client.connect():
+            click.echo("  Connected.")
+        else:
+            click.echo("  FAILED.", err=True)
+        news_client.disconnect()
 
 
 if __name__ == "__main__":
