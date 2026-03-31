@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "ibkr-datafetcher"
 version = "0.1.0"
 description = "Fetch and sync historical market data from Interactive Brokers"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "ibkr-datafetcher contributors" }]
 dependencies = [
