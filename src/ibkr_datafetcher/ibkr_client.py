@@ -87,14 +87,37 @@ class IBKRClient:
         fut = asyncio.run_coroutine_threadsafe(coro, self._loop)
         return fut.result(timeout=timeout)
 
-    async def _connect_async(self, timeout: float) -> None:
+    async def _connect_async(self, timeout: float, client_id: int) -> None:
         await self._ib_safe.connectAsync(
             self._config.host,
             self._config.port,
-            self._config.client_id,
+            client_id,
             timeout,
             readonly=True,
         )
+
+    async def _try_connect_async(self, timeout: float, start_client_id: int) -> tuple[bool, int]:
+        for client_id in range(start_client_id, start_client_id + 100):
+            try:
+                self._ib_safe.clientId = client_id
+                await self._ib_safe.connectAsync(
+                    self._config.host,
+                    self._config.port,
+                    client_id,
+                    timeout,
+                    readonly=True,
+                )
+                if not self._ib_safe.isConnected():
+                    logger.debug("clientId %d connected but isConnected=false, trying next", client_id)
+                    continue
+                logger.info("Connected with clientId %d", client_id)
+                return True, client_id
+            except Exception as e:
+                if "already in use" in str(e) or "Unable to connect" in str(e):
+                    logger.debug("clientId %d already in use, trying next", client_id)
+                    continue
+                raise
+        return False, -1
 
     async def _is_connected_async(self) -> bool:
         return self._ib_safe.isConnected()
@@ -102,8 +125,15 @@ class IBKRClient:
     def connect(self, timeout: float = 60) -> bool:
         try:
             self._ensure_loop_thread()
-            self._run_coro(self._connect_async(timeout), timeout + 30)
-            return self._run_coro(self._is_connected_async(), 5)
+            success, used_id = self._run_coro(
+                self._try_connect_async(timeout, self._config.client_id),
+                timeout + 60
+            )
+            if success:
+                logger.info("Connected to IBKR Gateway with clientId %d", used_id)
+                return True
+            logger.warning("Failed to connect: all clientIds in use")
+            return False
         except (OSError, asyncio.TimeoutError, ConnectionRefusedError,
                 RuntimeError, TimeoutError, concurrent.futures.TimeoutError):
             logger.exception("IBKR connect failed")
