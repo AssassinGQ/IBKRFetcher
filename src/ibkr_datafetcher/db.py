@@ -260,6 +260,31 @@ class Database:
 
         return self._enqueue_read(_r)
 
+    def get_time_range(self, symbol: str, timeframe: str) -> tuple[Optional[int], Optional[int]]:
+        """返回 (earliest_timestamp, latest_timestamp)"""
+
+        def _r(conn: sqlite3.Connection) -> tuple[Optional[int], Optional[int]]:
+            row = conn.execute(
+                "SELECT MIN(timestamp) as earliest, MAX(timestamp) as latest "
+                "FROM kline_bars WHERE symbol = ? AND timeframe = ?",
+                (symbol, timeframe),
+            ).fetchone()
+            return (row["earliest"], row["latest"])
+
+        return self._enqueue_read(_r)
+
+    def get_timeframes_for_symbol(self, symbol: str) -> list[str]:
+        """返回该 symbol 所有已存储的 timeframe 列表"""
+
+        def _r(conn: sqlite3.Connection) -> list[str]:
+            rows = conn.execute(
+                "SELECT DISTINCT timeframe FROM kline_bars WHERE symbol = ? ORDER BY timeframe",
+                (symbol,),
+            ).fetchall()
+            return [r["timeframe"] for r in rows]
+
+        return self._enqueue_read(_r)
+
     def get_all_sync_status(self) -> list[SyncStatus]:
         def _r(conn: sqlite3.Connection) -> list[SyncStatus]:
             rows = conn.execute("SELECT * FROM sync_status").fetchall()

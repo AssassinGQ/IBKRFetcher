@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
 import os
-import time
 from datetime import datetime, timezone
 from unittest import mock
 
@@ -11,7 +9,7 @@ from click.testing import CliRunner
 
 from ibkr_datafetcher.cli import main
 from ibkr_datafetcher.db import Database
-from ibkr_datafetcher.types import KlineBar, NewsItem, SyncStatus, Timeframe
+from ibkr_datafetcher.types import SyncStatus, Timeframe
 
 CONFIGS_DIR = os.path.join(os.path.dirname(__file__), "..", "configs")
 CONFIG_PATH = os.path.join(CONFIGS_DIR, "config.yaml")
@@ -151,94 +149,92 @@ def test_uc_p6_5_through_7_progress_panel():
 
 @mock.patch("ibkr_datafetcher.cli._load_config")
 @mock.patch("ibkr_datafetcher.cli.Database")
-def test_uc_p6_8_query_table(mock_db_cls, mock_load_cfg, runner):
+def test_uc_p6_8_query_time_range_with_timeframe(mock_db_cls, mock_load_cfg, runner):
     from ibkr_datafetcher.config import GatewayConfig, SyncConfig, DatabaseConfig, ScheduleConfig, Config
 
     cfg = Config(GatewayConfig("127.0.0.1", 4012, 1),
                  SyncConfig(3, 30), DatabaseConfig("test.db"), ScheduleConfig(False, ""))
     mock_load_cfg.return_value = cfg
 
-    bar = KlineBar(symbol="AAPL", timeframe=Timeframe.D1, timestamp=1700000000,
-                   open=150.0, high=152.0, low=149.0, close=151.0,
-                   volume=1000000, bar_count=500,
-                   bar_time=datetime(2023, 11, 14, tzinfo=timezone.utc))
-
     mock_db_inst = mock_db_cls.return_value
-    mock_db_inst.query_klines.return_value = [bar]
+    mock_db_inst.get_time_range.return_value = (1700000000, 1704000000)
 
-    result = runner.invoke(main, ["query", "AAPL", "--timeframe", "1 day",
-                                  "--limit", "10", "--format", "table"])
+    result = runner.invoke(main, ["query", "AAPL", "--timeframe", "1 day"])
     assert result.exit_code == 0
-    assert "AAPL" in result.output
-    assert "150.00" in result.output
+    assert "2023-11-14 ~ 2023-12-31" in result.output
+    mock_db_inst.get_time_range.assert_called_once_with("AAPL", "D1")
 
 
 @mock.patch("ibkr_datafetcher.cli._load_config")
 @mock.patch("ibkr_datafetcher.cli.Database")
-def test_uc_p6_9_query_csv_output(mock_db_cls, mock_load_cfg, runner, tmp_path):
+def test_uc_p6_9_query_all_timeframes(mock_db_cls, mock_load_cfg, runner):
     from ibkr_datafetcher.config import GatewayConfig, SyncConfig, DatabaseConfig, ScheduleConfig, Config
 
     cfg = Config(GatewayConfig("127.0.0.1", 4012, 1),
                  SyncConfig(3, 30), DatabaseConfig("test.db"), ScheduleConfig(False, ""))
     mock_load_cfg.return_value = cfg
 
-    bar = KlineBar(symbol="AAPL", timeframe=Timeframe.D1, timestamp=1700000000,
-                   open=150.0, high=152.0, low=149.0, close=151.0,
-                   volume=1000000, bar_count=500,
-                   bar_time=datetime(2023, 11, 14, tzinfo=timezone.utc))
     mock_db_inst = mock_db_cls.return_value
-    mock_db_inst.query_klines.return_value = [bar]
+    mock_db_inst.get_timeframes_for_symbol.return_value = ["D1", "H1"]
+    mock_db_inst.get_time_range.side_effect = [
+        (1700000000, 1704000000),
+        (1700000000, 1702000000)
+    ]
 
-    out_file = str(tmp_path / "test.csv")
-    result = runner.invoke(main, ["query", "AAPL", "--timeframe", "1 day",
-                                  "--format", "csv", "--output", out_file])
+    result = runner.invoke(main, ["query", "AAPL"])
     assert result.exit_code == 0
-    assert os.path.exists(out_file)
-    with open(out_file, encoding="utf-8") as f:
-        content = f.read()
-    assert "AAPL" in content
-    assert "symbol" in content
+    assert "D1:" in result.output
+    assert "2023-11-14 ~ 2023-12-31" in result.output
+    assert "H1:" in result.output
+    assert "11-14" in result.output
+    mock_db_inst.get_timeframes_for_symbol.assert_called_once_with("AAPL")
 
 
 @mock.patch("ibkr_datafetcher.cli._load_config")
 @mock.patch("ibkr_datafetcher.cli.Database")
-def test_uc_p6_10_query_json(mock_db_cls, mock_load_cfg, runner):
+def test_uc_p6_10_query_with_timeframe_no_data(mock_db_cls, mock_load_cfg, runner):
     from ibkr_datafetcher.config import GatewayConfig, SyncConfig, DatabaseConfig, ScheduleConfig, Config
 
     cfg = Config(GatewayConfig("127.0.0.1", 4012, 1),
                  SyncConfig(3, 30), DatabaseConfig("test.db"), ScheduleConfig(False, ""))
     mock_load_cfg.return_value = cfg
 
-    bar = KlineBar(symbol="AAPL", timeframe=Timeframe.D1, timestamp=1700000000,
-                   open=150.0, high=152.0, low=149.0, close=151.0,
-                   volume=1000000, bar_count=500,
-                   bar_time=datetime(2023, 11, 14, tzinfo=timezone.utc))
     mock_db_inst = mock_db_cls.return_value
-    mock_db_inst.query_klines.return_value = [bar]
+    mock_db_inst.get_time_range.return_value = (None, None)
 
-    result = runner.invoke(main, ["query", "AAPL", "--timeframe", "1 day", "--format", "json"])
+    result = runner.invoke(main, ["query", "AAPL", "--timeframe", "1 day"])
     assert result.exit_code == 0
-    data = json.loads(result.output)
-    assert len(data) == 1
-    assert data[0]["symbol"] == "AAPL"
+    assert "No data found." in result.output
 
 
 @mock.patch("ibkr_datafetcher.cli._load_config")
 @mock.patch("ibkr_datafetcher.cli.Database")
-def test_uc_p6_11_query_time_range(mock_db_cls, mock_load_cfg, runner):
+def test_uc_p6_11_query_no_timeframe_no_data(mock_db_cls, mock_load_cfg, runner):
     from ibkr_datafetcher.config import GatewayConfig, SyncConfig, DatabaseConfig, ScheduleConfig, Config
 
     cfg = Config(GatewayConfig("127.0.0.1", 4012, 1),
                  SyncConfig(3, 30), DatabaseConfig("test.db"), ScheduleConfig(False, ""))
     mock_load_cfg.return_value = cfg
     mock_db_inst = mock_db_cls.return_value
-    mock_db_inst.query_klines.return_value = []
+    mock_db_inst.get_timeframes_for_symbol.return_value = []
 
-    result = runner.invoke(main, ["query", "AAPL", "--timeframe", "1 day",
-                                  "--from", "2024-01-01", "--to", "2024-06-01"])
+    result = runner.invoke(main, ["query", "AAPL"])
     assert result.exit_code == 0
-    call_kwargs = mock_db_inst.query_klines.call_args
-    assert call_kwargs.kwargs.get("from_time") is not None or call_kwargs[1].get("from_time") is not None
+    assert "No data found." in result.output
+
+
+@mock.patch("ibkr_datafetcher.cli._load_config")
+@mock.patch("ibkr_datafetcher.cli.Database")
+def test_uc_p6_11b_query_unknown_timeframe(mock_db_cls, mock_load_cfg, runner):
+    from ibkr_datafetcher.config import GatewayConfig, SyncConfig, DatabaseConfig, ScheduleConfig, Config
+
+    cfg = Config(GatewayConfig("127.0.0.1", 4012, 1),
+                 SyncConfig(3, 30), DatabaseConfig("test.db"), ScheduleConfig(False, ""))
+    mock_load_cfg.return_value = cfg
+
+    result = runner.invoke(main, ["query", "AAPL", "--timeframe", "bogus"])
+    assert result.exit_code != 0
+    assert "Unknown timeframe: bogus" in result.output
 
 
 @mock.patch("ibkr_datafetcher.cli._load_config")
@@ -307,33 +303,32 @@ def test_uc_p6_14_news_command(mock_fetcher_cls, mock_db_cls, mock_client_cls,
 
 @mock.patch("ibkr_datafetcher.cli._load_config")
 @mock.patch("ibkr_datafetcher.cli.IBKRClient")
-def test_uc_p6_16_reconnect_connected(mock_client_cls, mock_load_cfg, runner):
+def test_uc_p6_16_reconnect_success(mock_client_cls, mock_load_cfg, runner):
     from ibkr_datafetcher.config import GatewayConfig, SyncConfig, DatabaseConfig, ScheduleConfig, Config
 
     cfg = Config(GatewayConfig("127.0.0.1", 4012, 1),
                  SyncConfig(3, 30), DatabaseConfig("test.db"), ScheduleConfig(False, ""))
     mock_load_cfg.return_value = cfg
     mock_client_inst = mock_client_cls.return_value
-    mock_client_inst.is_connected.return_value = True
+    mock_client_inst.connect.return_value = True
 
     result = runner.invoke(main, ["reconnect"])
     assert result.exit_code == 0
-    assert "Already connected" in result.output
+    assert "Connected." in result.output
+    mock_client_inst.connect.assert_called_once()
 
 
 @mock.patch("ibkr_datafetcher.cli._load_config")
 @mock.patch("ibkr_datafetcher.cli.IBKRClient")
-def test_uc_p6_17_reconnect_not_connected(mock_client_cls, mock_load_cfg, runner):
+def test_uc_p6_17_reconnect_failure(mock_client_cls, mock_load_cfg, runner):
     from ibkr_datafetcher.config import GatewayConfig, SyncConfig, DatabaseConfig, ScheduleConfig, Config
 
     cfg = Config(GatewayConfig("127.0.0.1", 4012, 1),
                  SyncConfig(3, 30), DatabaseConfig("test.db"), ScheduleConfig(False, ""))
     mock_load_cfg.return_value = cfg
     mock_client_inst = mock_client_cls.return_value
-    mock_client_inst.is_connected.return_value = False
-    mock_client_inst.reconnect.return_value = True
+    mock_client_inst.connect.return_value = False
 
     result = runner.invoke(main, ["reconnect"])
     assert result.exit_code == 0
-    assert "Reconnected" in result.output
-    mock_client_inst.reconnect.assert_called_once()
+    assert "FAILED." in result.output

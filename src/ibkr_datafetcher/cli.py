@@ -6,6 +6,7 @@ import json
 import os
 import sys
 from datetime import datetime, timezone
+from typing import Optional
 
 import click
 
@@ -202,55 +203,64 @@ def _format_bars(bars: list, fmt: str) -> str:
     return "\n".join(lines)
 
 
+def _format_time_range(earliest: Optional[int], latest: Optional[int], timeframe: Timeframe) -> str:
+    if earliest is None or latest is None:
+        return "No data found."
+
+    earliest_dt = datetime.fromtimestamp(earliest, tz=timezone.utc)
+    latest_dt = datetime.fromtimestamp(latest, tz=timezone.utc)
+
+    is_second = timeframe in (Timeframe.S5, Timeframe.S10, Timeframe.S15, Timeframe.S30)
+    is_minute = timeframe in (Timeframe.M1, Timeframe.M2, Timeframe.M3, Timeframe.M5,
+                              Timeframe.M10, Timeframe.M15, Timeframe.M20, Timeframe.M30)
+    is_hour = timeframe in (Timeframe.H1, Timeframe.H2, Timeframe.H3, Timeframe.H4, Timeframe.H8)
+    is_day = timeframe == Timeframe.D1
+
+    if is_second:
+        return f"{earliest_dt.strftime('%H:%M:%S')} ~ {latest_dt.strftime('%H:%M:%S')}"
+    if is_minute:
+        return f"{earliest_dt.strftime('%m-%d %H:%M')} ~ {latest_dt.strftime('%m-%d %H:%M')}"
+    if is_hour:
+        return f"{earliest_dt.strftime('%m-%d %H:00')} ~ {latest_dt.strftime('%m-%d %H:00')}"
+    return f"{earliest_dt.strftime('%Y-%m-%d')} ~ {latest_dt.strftime('%Y-%m-%d')}"
+
+
 @main.command()
 @click.argument("symbol")
-@click.option("--timeframe", required=True, help="Bar size, e.g. '1 day'")
-@click.option("--from", "from_time", default=None, help="Start date YYYY-MM-DD")
-@click.option("--to", "to_time", default=None, help="End date YYYY-MM-DD")
-@click.option("--limit", type=int, default=None)
-@click.option("--format", "fmt", type=click.Choice(["table", "csv", "json"]), default="table")
-@click.option("--output", type=click.Path(), default=None)
+@click.option("--timeframe", default=None, help="Bar size, e.g. '1 day' (optional)")
 @click.option("--config", "config_path", default=_DEFAULT_CONFIG)
-def query(symbol, timeframe, from_time, to_time, limit, fmt, output, config_path):  # pylint: disable=too-many-branches
-    """Query local K-line data"""
+def query(symbol, timeframe, config_path):  # pylint: disable=too-many-branches
+    """Query time range of local K-line data"""
     cfg = _load_config(config_path)
-
-    if output:
-        out_abs = os.path.abspath(output)
-        db_abs = os.path.abspath(_resolve_path(cfg.database.path))
-        if out_abs == db_abs:
-            click.echo(
-                f"ERROR: --output points to the database file ({cfg.database.path}). "
-                "This would overwrite the database. Use a different path.",
-                err=True,
-            )
-            sys.exit(1)
-
     db = Database(cfg.database.path)
 
-    tf_name = _resolve_timeframe_name(timeframe)
-    if tf_name is None:
-        click.echo(f"Unknown timeframe: {timeframe}", err=True)
-        db.close()
-        sys.exit(1)
-
-    ft = int(datetime.strptime(from_time, "%Y-%m-%d").replace(
-        tzinfo=timezone.utc).timestamp()) if from_time else None
-    tt = int(datetime.strptime(to_time, "%Y-%m-%d").replace(
-        tzinfo=timezone.utc).timestamp()) if to_time else None
-
     try:
-        bars: list = db.query_klines(symbol.upper(), tf_name, from_time=ft, to_time=tt, limit=limit)
+        if timeframe:
+            tf_name = _resolve_timeframe_name(timeframe)
+            if tf_name is None:
+                click.echo(f"Unknown timeframe: {timeframe}", err=True)
+                sys.exit(1)
+
+            earliest, latest = db.get_time_range(symbol.upper(), tf_name)
+            if earliest is None or latest is None:
+                click.echo("No data found.")
+            else:
+                tf = Timeframe[tf_name]
+                text = _format_time_range(earliest, latest, tf)
+                click.echo(text)
+        else:
+            tf_names = db.get_timeframes_for_symbol(symbol.upper())
+            if not tf_names:
+                click.echo("No data found.")
+            else:
+                for tf_name in tf_names:
+                    earliest, latest = db.get_time_range(symbol.upper(), tf_name)
+                    if earliest is not None and latest is not None:
+                        tf = Timeframe[tf_name]
+                        text = _format_time_range(earliest, latest, tf)
+                        click.echo(f"{tf_name}: {text}")
     finally:
         db.close()
-
-    text = _format_bars(bars, fmt)
-    if output:
-        with open(output, "w", encoding="utf-8") as f:
-            f.write(text)
-        click.echo(f"Written {len(bars)} rows to {output}")
-    else:
-        click.echo(text.rstrip() if fmt == "csv" else text)
 
 
 @main.command()
