@@ -215,13 +215,19 @@ def _format_time_range(earliest: Optional[int], latest: Optional[int], timeframe
                               Timeframe.M10, Timeframe.M15, Timeframe.M20, Timeframe.M30)
     is_hour = timeframe in (Timeframe.H1, Timeframe.H2, Timeframe.H3, Timeframe.H4, Timeframe.H8)
     is_day = timeframe == Timeframe.D1
+    is_week = timeframe == Timeframe.W1
+    is_month = timeframe == Timeframe.MN1
 
     if is_second:
-        return f"{earliest_dt.strftime('%H:%M:%S')} ~ {latest_dt.strftime('%H:%M:%S')}"
+        return f"{earliest_dt.strftime('%Y-%m-%d %H:%M:%S')} ~ {latest_dt.strftime('%Y-%m-%d %H:%M:%S')}"
     if is_minute:
-        return f"{earliest_dt.strftime('%m-%d %H:%M')} ~ {latest_dt.strftime('%m-%d %H:%M')}"
+        return f"{earliest_dt.strftime('%Y-%m-%d %H:%M')} ~ {latest_dt.strftime('%Y-%m-%d %H:%M')}"
     if is_hour:
-        return f"{earliest_dt.strftime('%m-%d %H:00')} ~ {latest_dt.strftime('%m-%d %H:00')}"
+        return f"{earliest_dt.strftime('%Y-%m-%d %H:00')} ~ {latest_dt.strftime('%Y-%m-%d %H:00')}"
+    if is_week:
+        return f"{earliest_dt.strftime('%Y-%m-%d')} ~ {latest_dt.strftime('%Y-%m-%d')}"
+    if is_month:
+        return f"{earliest_dt.strftime('%Y-%m')} ~ {latest_dt.strftime('%Y-%m')}"
     return f"{earliest_dt.strftime('%Y-%m-%d')} ~ {latest_dt.strftime('%Y-%m-%d')}"
 
 
